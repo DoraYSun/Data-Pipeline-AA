@@ -24,7 +24,11 @@ class Car:
         #scraping car details by xpath
         try:
             # licence plate
-            item['licence_plate'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[2]/article[3]/p/strong/text()') 
+            # find licence plate through alternative xpath to eliminate empty list
+            if len(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[2]/article[2]/p/strong/text()')) == 0:
+                item['license_plate'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[2]/article[3]/p/strong/text()')
+            else:
+                item['license_plate'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[2]/article[2]/p/strong/text()')
             # car make
             item['make'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[1]/div/div[1]/h1/span[1]/text()')
             # car model of the make
@@ -51,9 +55,8 @@ class Car:
             item['co2_emissions'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[9]/span[2]/span/text()')
         except Exception as e:
             print('>>>>> unable to find elements', e)
-        print(item)
+           
         
-    
     def car_list(self, item):
         """Obtain individual car URL from each main page""" 
         # find how many car info avaliable 
@@ -88,7 +91,8 @@ class Car:
             for task in task_ls:
                  # finish waiting 
                  task.join() 
-        
+      
+    
     def run(self):
         """accept cookies and initiate a dictionary for storing car info"""
         # access the initial page to accept cookies
@@ -99,16 +103,18 @@ class Car:
 
         # initiate a dictionary to store car info 
         item = {}  
-        # pass item to next fuction
+        # pass item to next fuction as dictionaty
         self.car_list(dict(item)) 
 
-
+        
     def __del__(self):
         # shut down the browser
         self.driver.close()  
         print('>>>>[Well Done]')
-#%%
+
+
+# test Car()
 if __name__ == '__main__':
     test = Car()
     test.run()
-# %%
+
