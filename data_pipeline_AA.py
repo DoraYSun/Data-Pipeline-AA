@@ -3,6 +3,8 @@ from selenium import webdriver
 from threading import Thread
 from lxml import etree
 import requests
+import pandas as pd
+import time
 
 class Car:
 
@@ -13,50 +15,60 @@ class Car:
         options.add_experimental_option("prefs", prefs)
         #claim Google Chrome as browser
         self.driver = webdriver.Chrome()
+        self.car_details_list = []
 
 
     def car_detail(self, item):
         """get detailed info for each car"""  
         #use requests rather than drivers to save image loading 
-        req = requests.get(item['URL'], headers=None)
+        try:
+            time.sleep(0.5)
+            req = requests.get(item['URL'], headers=None) 
+        except Exception as e:
+            print('>>>>>url error ', item['URL'])
+            print(e)
         # generate xpath info for the page
-        html = etree.HTML(req .text)
+        html = etree.HTML(req.text)
+      
         #scraping car details by xpath
         try:
             # licence plate
             # find licence plate through alternative xpath to eliminate empty list
             if len(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[2]/article[2]/p/strong/text()')) == 0:
-                item['license_plate'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[2]/article[3]/p/strong/text()')
+                item['license_plate'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[2]/article[3]/p/strong/text()')[0])
             else:
-                item['license_plate'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[2]/article[2]/p/strong/text()')
+                item['license_plate'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[2]/article[2]/p/strong/text()')[0])
+
             # car make
-            item['make'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[1]/div/div[1]/h1/span[1]/text()')
+            item['make'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[1]/div/div[1]/h1/span[1]/text()')[0])
             # car model of the make
-            item['model'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[1]/div/div[1]/h1/span[2]/text()')
+            item['model'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[1]/div/div[1]/h1/span[2]/text()')[0])
             # car price
-            item['price'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/div[1]/div/div/strong/text()') 
+            item['price'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/div[1]/div/div/strong/text()')[0])
             # mileage droven
-            item['mileage'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[1]/span[2]/span/text()')
+            item['mileage'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[1]/span[2]/span/text()')[0])
             # year made of the car
-            item['year'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[2]/span[2]/span/text()')
+            item['year'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[2]/span[2]/span/text()')[0])
             # fuel type of the car
-            item['fuel_type'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[3]/span[2]/span/text()')
+            item['fuel_type'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[3]/span[2]/span/text()')[0])
             # transmission of the car
-            item['transmission'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[4]/span[2]/span/text()')
+            item['transmission'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[4]/span[2]/span/text()')[0])
             # body type of the car
-            item['body_type'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[5]/span[2]/span/text()')
+            item['body_type'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[5]/span[2]/span/text()')[0])
             # main colour of the car
-            item['colour'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[6]/span[2]/span/text()')
+            item['colour'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[6]/span[2]/span/text()')[0])
             # door umbers
-            item['doors'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[7]/span[2]/span/text()')
+            item['doors'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[7]/span[2]/span/text()')[0])
             # engine size of the car
-            item['engine_size'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[8]/span[2]/span/text()')
+            item['engine_size'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[8]/span[2]/span/text()')[0])
             # co2 emissions of the car
-            item['co2_emissions'] = html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[9]/span[2]/span/text()')
+            item['co2_emissions'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[9]/span[2]/span/text()')[0])
         except Exception as e:
             print('>>>>> unable to find elements', e)
-           
         
+        self.car_details_list.append(item)
+
+    
     def car_list(self, item):
         """Obtain individual car URL from each main page""" 
         # find how many car info avaliable 
@@ -67,9 +79,10 @@ class Car:
             page_range = int(car_numbers) // 20
         else:
             page_range = int(car_numbers) // 20 + 1
+        
 
         # access to each page
-        for page in range(1, page_range + 1):
+        for page in range(1, 100):
             self.driver.get(f'https://www.theaa.com/used-cars/displaycars?sortby=datedesc&page={page}&pricefrom=0&priceto=1000000')  
             
             # obtain url for each car
@@ -89,10 +102,10 @@ class Car:
 
             # waiting for last task to finish in order to strat a new task
             for task in task_ls:
-                 # finish waiting 
-                 task.join() 
-      
-    
+                # finish waiting 
+                task.join() 
+            print(f'>> page{page}--[Done]')
+        
     def run(self):
         """accept cookies and initiate a dictionary for storing car info"""
         # access the initial page to accept cookies
@@ -103,18 +116,24 @@ class Car:
 
         # initiate a dictionary to store car info 
         item = {}  
-        # pass item to next fuction as dictionaty
+        # pass item to next fuction
         self.car_list(dict(item)) 
 
-        
+
+    def create_df(self):
+        return pd.DataFrame(self.car_details_list)
+
+
     def __del__(self):
         # shut down the browser
         self.driver.close()  
         print('>>>>[Well Done]')
-
-
-# test Car()
+#%%
 if __name__ == '__main__':
     test = Car()
     test.run()
-
+    df = test.create_df()
+    df.to_csv("Output Test.csv", encoding="utf8")
+    
+    
+# %%
