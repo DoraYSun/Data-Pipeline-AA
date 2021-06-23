@@ -19,17 +19,20 @@ class Car:
 
 
     def car_detail(self, item):
-        """get detailed info for each car"""  
+        """get detailed info for each car""" 
+        # obtain image url for each car
+        for i in range(43, len(item['URL'])):
+            if item['URL'][i] == '-':
+                partial_img_url= item['URL'][(i+1):]
+        item['image_url'] = 'https://image.vcars.co.uk/vcarsdna/' + partial_img_url + '_1.jpg'
+
         #use requests rather than drivers to save image loading 
-        try:
-            time.sleep(0.5)
-            req = requests.get(item['URL'], headers=None) 
-        except Exception as e:
-            print('>>>>>url error ', item['URL'])
-            print(e)
+        time.sleep(0.5)
+        req = requests.get(item['URL'], headers=None) 
+        
         # generate xpath info for the page
         html = etree.HTML(req.text)
-      
+        
         #scraping car details by xpath
         try:
             # licence plate
@@ -39,12 +42,12 @@ class Car:
             else:
                 item['license_plate'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[2]/article[2]/p/strong/text()')[0])
 
+            # car price
+            item['price'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/div[1]/div/div/strong/text()')[0])
             # car make
             item['make'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[1]/div/div[1]/h1/span[1]/text()')[0])
             # car model of the make
-            item['model'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[1]/div/div[1]/h1/span[2]/text()')[0])
-            # car price
-            item['price'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/div[1]/div/div/strong/text()')[0])
+            item['model'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[1]/div/div[1]/h1/span[2]/text()')[0])           
             # mileage droven
             item['mileage'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[1]/span[2]/span/text()')[0])
             # year made of the car
@@ -80,31 +83,36 @@ class Car:
         else:
             page_range = int(car_numbers) // 20 + 1
         
+        
+        for page in range(1, page_range):
+            self.driver.get(f'https://www.theaa.com/used-cars/displaycars?sortby=datedesc&page={page}&pricefrom=0&priceto=1000000')
+           
+            # stop scraping when no info avalible
+            if len(self.driver.find_elements_by_xpath('//div [@class="finance-and-view"]')) == 0:
+                print('Information not avaliable')
+                break
+                
+            else: 
+                # obtain url for each car
+                car_ls = self.driver.find_elements_by_xpath('//div [@class="finance-and-view"]')
+                
+                # generate car url list
+                car_url_ls = [car.find_element_by_xpath('.//a').get_attribute('href') for car in car_ls]
+                # define a task list
+                task_ls = []   
 
-        # access to each page
-        for page in range(1, 100):
-            self.driver.get(f'https://www.theaa.com/used-cars/displaycars?sortby=datedesc&page={page}&pricefrom=0&priceto=1000000')  
-            
-            # obtain url for each car
-            car_ls = self.driver.find_elements_by_xpath('//div [@class="finance-and-view"]')
-            
-            # generate car url list
-            car_url_ls = [car.find_element_by_xpath('.//a').get_attribute('href') for car in car_ls]
-            # define a task list
-            task_ls = []   
+                for url in car_url_ls:
+                    item['URL'] = url
+                    # handover car detail scraping task to threads
+                    task = Thread(target=self.car_detail, args=(dict(item),))
+                    task.start()    # start task
+                    task_ls.append(task)    # append task to task list
 
-            for url in car_url_ls:
-                item['URL'] = url
-                # handover car detail scraping task to threads
-                task = Thread(target=self.car_detail, args=(dict(item),))
-                task.start()    # start task
-                task_ls.append(task)    # append task to task list
-
-            # waiting for last task to finish in order to strat a new task
-            for task in task_ls:
-                # finish waiting 
-                task.join() 
-            print(f'>> page{page}--[Done]')
+                # waiting for last task to finish in order to strat a new task
+                for task in task_ls:
+                    # finish waiting 
+                    task.join() 
+                print(f'>> page{page}--[Done]')
         
     def run(self):
         """accept cookies and initiate a dictionary for storing car info"""
