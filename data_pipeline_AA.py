@@ -1,31 +1,41 @@
-#%%
 from selenium import webdriver
 from threading import Thread
 from lxml import etree
 import requests
 import pandas as pd
+import numpy as np
 import time
+import urllib.request
+import boto3
+
 
 class Car:
 
     def __init__(self):
+        """set up driver and create a list for data saving"""
         options = webdriver.ChromeOptions()
         # improve efficiency by setting browser to open without images 
         prefs = {"profile.managed_default_content_settings.images": 2}
         options.add_experimental_option("prefs", prefs)
         #claim Google Chrome as browser
-        self.driver = webdriver.Chrome()
+        self.driver = webdriver.Chrome(chrome_options=options)
         self.car_details_list = []
-
+    
 
     def car_detail(self, item):
         """get detailed info for each car""" 
+        
+        car_info_df = pd.read_csv('Output Test.csv')
+        if item['URL'] in car_info_df.values:
+            print('>>> car info already in database')
+            return
+
         # obtain image url for each car
         for i in range(43, len(item['URL'])):
             if item['URL'][i] == '-':
                 partial_img_url= item['URL'][(i+1):]
         item['image_url'] = 'https://image.vcars.co.uk/vcarsdna/' + partial_img_url + '_1.jpg'
-
+        
         #use requests rather than drivers to save image loading 
         time.sleep(0.5)
         req = requests.get(item['URL'], headers=None) 
@@ -64,10 +74,18 @@ class Car:
             item['doors'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[7]/span[2]/span/text()')[0])
             # engine size of the car
             item['engine_size'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[8]/span[2]/span/text()')[0])
-            # co2 emissions of the car
-            item['co2_emissions'] = str(html.xpath('//*[@id="header"]/div[4]/main/div[3]/div[1]/section[3]/div/ul/li[9]/span[2]/span/text()')[0])
+            
         except Exception as e:
             print('>>>>> unable to find elements', e)
+        
+        # download car images to local directory
+        urllib.request.urlretrieve(item['image_url'], item['license_plate'])
+
+        # upload car images to s3
+        file_name = '/Users/dorasun/Desktop/Data-Pipeline/' + item['license_plate']
+        object_name = item['license_plate'] +'.jpg'
+        s3_client = boto3.client('s3')
+        s3_client.upload_file(file_name, 'aaimgbucket', object_name)
         
         self.car_details_list.append(item)
 
@@ -82,7 +100,6 @@ class Car:
             page_range = int(car_numbers) // 20
         else:
             page_range = int(car_numbers) // 20 + 1
-        
         
         for page in range(1, page_range):
             self.driver.get(f'https://www.theaa.com/used-cars/displaycars?sortby=datedesc&page={page}&pricefrom=0&priceto=1000000')
@@ -113,7 +130,8 @@ class Car:
                     # finish waiting 
                     task.join() 
                 print(f'>> page{page}--[Done]')
-        
+
+
     def run(self):
         """accept cookies and initiate a dictionary for storing car info"""
         # access the initial page to accept cookies
@@ -127,21 +145,49 @@ class Car:
         # pass item to next fuction
         self.car_list(dict(item)) 
 
-
+    
     def create_df(self):
-        return pd.DataFrame(self.car_details_list)
+        """save car details in a dataframe"""
+        df = pd.DataFrame(self.car_details_list)
+        df.to_csv('Output Test.csv', mode='a', encoding='utf8', header=None)
 
+
+    def clean_df(self):
+        """clean data output"""
+        # clean duplicates and drop missing values 
+        car_df = pd.read_csv('Output Test.csv', index_col=0, skip_blank_lines=True)
+        car_df.reset_index(drop=True, inplace=True)
+        car_df.replace('license_plate', np.nan, inplace=True)
+        car_df.dropna(subset=['license_plate'], inplace=True)
+        car_df.drop_duplicates(subset=['license_plate'],inplace=True)
+        # clean 'price' column 
+        car_df['price'] = car_df['price'].str.strip('£').str.replace(',', '')
+        car_df['price'] = car_df['price'].astype('float64')
+        # clean 'mileage' column 
+        car_df['mileage'] = car_df['mileage'].str.replace(',', '')
+        car_df['mileage'] = car_df['mileage'].astype('float64')
+        # clean 'doors' column 
+        car_df['doors'] = car_df['doors'].replace(0, np.nan)
+        car_df['doors'] = car_df['doors'].astype('int32')
+        # clean 'engine_size' column 
+        df_mask = car_df[['engine_size']]
+        mask = car_df['engine_size'].str.contains(r'g', na=False)
+        df_mask.loc[mask, 'engine_size'] = np.nan
+        car_df['engine_size'] = df_mask['engine_size']
+        car_df['engine_size'] = car_df['engine_size'].str.replace(' L', '')
+        car_df['engine_size'] = car_df['engine_size'].astype('float64')
+        # save cleaned data
+        car_df.to_csv('Output Test.csv', encoding='utf8')
+        
 
     def __del__(self):
         # shut down the browser
         self.driver.close()  
         print('>>>>[Well Done]')
-#%%
+
+# test code
 if __name__ == '__main__':
     test = Car()
     test.run()
-    df = test.create_df()
-    df.to_csv("Output Test.csv", encoding="utf8")
-    
-    
-# %%
+    test.create_df()
+    test.clean_df()
